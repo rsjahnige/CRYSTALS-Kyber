@@ -19,5 +19,3 @@ int k, n1, n2, du, dv;
 union byte {
 	int s : 7;	// seven bit integer (FIPS-203:2.3)
 };
-
-union byte BitRev7(union byte r);
