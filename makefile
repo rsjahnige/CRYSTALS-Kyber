@@ -1,10 +1,10 @@
 CC = gcc
 CFLAGS = -Wall
 
-test01: ml-kem.o BitRev7_test01.c
+test01: ml_kem.o BitRev7_test01.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-ml-kem.o: ml-kem.h ml-kem.c
+ml_kem.o: ml_kem.h ml_kem.c
 	$(CC) $(CFLAGS) -c $^
 
 clean:
