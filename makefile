@@ -1,6 +1,9 @@
 CC = gcc
 CFLAGS = -Wall
 
+test02: ml_kem.o BitsAndBytes_test02.c
+	$(CC) $(CFLAGS) $^ -o $@
+
 test01: ml_kem.o BitRev7_test01.c
 	$(CC) $(CFLAGS) $^ -o $@
 

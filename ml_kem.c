@@ -8,17 +8,10 @@
 
 #include "ml_kem.h"
 
-// Inline addition and multiplication functions defined for
-// integers in the set Zm (see FIP-203:2.4.1)
-inline int add(int x, int y, int m) {
-	return (x + y) % m;
-}
+// How do you round without floating-point arithmetic?
+//#define ROUND(x,y) ((x) < ((y) + (0.5)) ? (x) : ((y) + 1))
 
-inline int mult(int x, int y, int m) {
-	return (x * y) % m;
-}
-
-// Inline 7-bit reversal
+// Inline 7-bit reversal (see FIP-203:2.3)
 inline union byte BitRev7(union byte r) {
 	union byte tmp;
 
@@ -31,4 +24,45 @@ inline union byte BitRev7(union byte r) {
 	r.s |= (0b0000111 & (tmp.s >> 4)) | (0b1110000 & (tmp.s << 4));
 
 	return r;
+}
+
+/****************************************
+ * Conversion and Compression Algorithms
+ * *************************************/
+
+// Converts a bit array (of length that is a multiple of 8) into an array of bytes
+// 
+// NOTE: The input bit array is in little-endian order
+union byte* BitsToBytes(union bit* b, unsigned int l) {
+	union byte* B;
+	B = malloc(l/8);
+
+	for (int i=0; i < l; i++) {
+		if ((i % 8) == 0) B[i/8].e = 0b00000000;	// initialize byte array index
+		B[i/8].e |= (b[i].o & 0b00000001) << (i % 8);
+	}
+
+	return B;
+}
+
+// Perfroms the inverse of BitToBytes, converting a byte array into a bit array
+//
+// NOTE: The output bit array is in little-endian order
+union bit* BytesToBits(union byte* B, unsigned int L) {
+	union bit* b;
+	union byte* C;
+
+	b = malloc(sizeof(union bit) * L * 8);
+	C = malloc(L);
+
+	for (int i=0; i < L; i++) {
+		C[i].e = B[i].e;	// Copy B[i] into array C[i] in B^l
+		for (int j=0; j < 8; j++) {
+			b[(8 * i) + j].o = C[i].e & 0b00000001;
+			C[i].e = C[i].e >> 1;
+		}
+	}
+
+	free(C);
+	return b;
 }
