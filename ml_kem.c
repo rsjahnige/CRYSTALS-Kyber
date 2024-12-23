@@ -71,7 +71,7 @@ static union bit* BytesToBits(union byte* B, unsigned int L) {
 //
 // NOTE: F is in the finite field Zm^256; therefore, the lenght of F 
 // 	shall always be 256 (see FIPS-203:2.3)
-union byte* ByteEncode(union integer* F, unsigned int d) {
+static union byte* ByteEncode(union integer* F, unsigned int d) {
 	union integer a;
 	union bit* b;
 	union byte* B;
@@ -98,7 +98,7 @@ union byte* ByteEncode(union integer* F, unsigned int d) {
 // NOTE: For 1<=d<=11, the conversion is one-to-one; whereas, for d=12 
 // 	it is no longer a one-to-one operation when the input byte array
 // 	is NOT produced by ByteEncode()
-union integer* ByteDecode(union byte* B, unsigned int d) {
+static union integer* ByteDecode(union byte* B, unsigned int d) {
 	union bit* b;
 	union integer* F;
 	unsigned int m;
@@ -116,10 +116,15 @@ union integer* ByteDecode(union byte* B, unsigned int d) {
 
 		// F[i] = sum_j=0->(d-1){(b[i*d+j]*2^j) mod m}
 		for (int j=0; j < d; j++){
-			F[i].t |= (b[(i * d) + j].o * (0x001 << j)) % m;			}
+			F[i].t |= (b[(i * d) + j].o * (0x001 << j)) % m;
+		}			
 	}
 
 	free(b);
 
 	return F;
 }
+
+/****************************************
+ * Sampling Algorithms
+ * *************************************/

@@ -33,11 +33,10 @@ union byte {
 	unsigned int e : 8;	// eight bit integer
 };
 
+// Data type for integer arrays F in Zm^256, where m=2^d if 1<=d<12 
+// and m=Q if d=12 (see FIPS-203:4.2.1)
 union integer {
 	unsigned int t : 12;	// twelve bit integer 	
 };
-
-union byte* ByteEncode(union integer* F, unsigned int d);
-union integer* ByteDecode(union byte* B, unsigned int d);
 
 #endif
