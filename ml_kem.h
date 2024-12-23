@@ -1,5 +1,5 @@
 /****************************************************
- * File: ml-kem.h
+ * File: ml_kem.h
  * Author: Ryan Jahnige
  *
  * Description: Header file for the ML-KEM algorithm.
@@ -33,7 +33,11 @@ union byte {
 	unsigned int e : 8;	// eight bit integer
 };
 
-union byte* BitsToBytes(union bit* b, unsigned int l);
-union bit* BytesToBits(union byte* B, unsigned int L);
+union integer {
+	unsigned int t : 12;	// twelve bit integer 	
+};
+
+union byte* ByteEncode(union integer* F, unsigned int d);
+union integer* ByteDecode(union byte* B, unsigned int d);
 
 #endif
