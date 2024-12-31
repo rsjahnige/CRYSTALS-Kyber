@@ -9,7 +9,7 @@
 #include "ml_kem.h"
 
 // How do you round without floating-point arithmetic?
-//#define ROUND(x,y) ((x) < ((y) + (0.5)) ? (x) : ((y) + 1))
+//#define ROUND(x,y) ((x) < ((y) + (0.5)) ? (y) : ((y) + 1))
 
 // 7-bit reversal (see FIP-203:2.3)
 static union byte BitRev7(union byte r) {
@@ -67,6 +67,48 @@ static union bit* BytesToBits(union byte* B, unsigned int L) {
 	return b;
 }
 
+// Compression for integers in the finite field Zq
+//
+// NOTE: The bit length of the input integer stays the same - the 
+// 	value only changes for d < 12
+union integer Compress(union integer x, unsigned int d) {
+	union integer quo, rem, div;
+
+	if (d < 12) {
+		div.l = (0x001 << d) * x.t;	// calculate dividend
+		quo.t = div.l / Q;		// calculate quotient
+		rem.t = div.l % Q;		// calculate remainder
+		
+		x.t = quo.t;
+		if (rem.t > (Q / 2)) x.t += 1;	// round-up if remainder is > 0.5
+		x.t %= (0x001 << d);
+	}
+
+	return x;
+}
+
+// Decompression for integers in the finite field Z(2^d) where 1<=d<12
+//
+// NOTE: Similar to the Compress() funtion, the Decompress() function has no
+// 	affect on integers in Zq and bit lengths of the integers do not change,
+// 	only the value do to mimic the desired behavior
+union integer Decompress(union integer y, unsigned int d) {
+	union integer quo, rem, div, dsr;
+
+	if (d < 12) {
+		dsr.t = 0x001 << d;		// set divisor
+		div.l = Q * y.t;		// calculate dividend
+
+		quo.t = div.l / dsr.t;		// calculate quotient
+		rem.t = div.l % dsr.t;		// calculate remainder
+
+		y.t = quo.t;
+		if (rem.t >= (dsr.t / 2)) y.t += 1;	// round-up if remainder is >= 0.5
+	}
+
+	return y;
+}
+
 // Encode an array of d-bit integers into a byte array for 1<=d<=12
 //
 // NOTE: F is in the finite field Zm^256; therefore, the lenght of F 
@@ -93,7 +135,8 @@ static union byte* ByteEncode(union integer* F, unsigned int d) {
 	return B;
 }
 
-// Decode a byte array into an array of d-bit integers for 1<=d<=12
+// Decode a byte array, B in B^32d, into an array of d-bit integers 
+// for 1<=d<=12
 //
 // NOTE: For 1<=d<=11, the conversion is one-to-one; whereas, for d=12 
 // 	it is no longer a one-to-one operation when the input byte array

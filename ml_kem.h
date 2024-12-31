@@ -35,8 +35,16 @@ union byte {
 
 // Data type for integer arrays F in Zm^256, where m=2^d if 1<=d<12 
 // and m=Q if d=12 (see FIPS-203:4.2.1)
+//
+// NOTE: It is likely more efficient if the default integer size
+// 	for your system is used; however, this ensures that sufficient
+// 	bits are allocated 
 union integer {
 	unsigned int t : 12;	// twelve bit integer 	
+	unsigned int l : 24; 	// twenty-four bit integer - used for real number calculations
 };
+
+union integer Compress(union integer x, unsigned int d);
+union integer Decompress(union integer y, unsigned int d);
 
 #endif

@@ -1,6 +1,9 @@
 CC = gcc
 CFLAGS = -Wall
 
+test04: ml_kem.o CompressDecompress_test04.c
+	$(CC) $(CFLAGS) $^ -o $@
+
 test03: ml_kem.o EncodeDecode_test03.c
 	$(CC) $(CFLAGS) $^ -o $@
 
