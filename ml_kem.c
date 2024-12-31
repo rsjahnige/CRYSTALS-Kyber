@@ -8,9 +8,6 @@
 
 #include "ml_kem.h"
 
-// How do you round without floating-point arithmetic?
-//#define ROUND(x,y) ((x) < ((y) + (0.5)) ? (y) : ((y) + 1))
-
 // 7-bit reversal (see FIP-203:2.3)
 static union byte BitRev7(union byte r) {
 	union byte tmp;
@@ -71,7 +68,7 @@ static union bit* BytesToBits(union byte* B, unsigned int L) {
 //
 // NOTE: The bit length of the input integer stays the same - the 
 // 	value only changes for d < 12
-union integer Compress(union integer x, unsigned int d) {
+static union integer Compress(union integer x, unsigned int d) {
 	union integer quo, rem, div;
 
 	if (d < 12) {
@@ -92,7 +89,7 @@ union integer Compress(union integer x, unsigned int d) {
 // NOTE: Similar to the Compress() funtion, the Decompress() function has no
 // 	affect on integers in Zq and bit lengths of the integers do not change,
 // 	only the value do to mimic the desired behavior
-union integer Decompress(union integer y, unsigned int d) {
+static union integer Decompress(union integer y, unsigned int d) {
 	union integer quo, rem, div, dsr;
 
 	if (d < 12) {

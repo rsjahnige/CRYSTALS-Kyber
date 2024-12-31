@@ -44,7 +44,4 @@ union integer {
 	unsigned int l : 24; 	// twenty-four bit integer - used for real number calculations
 };
 
-union integer Compress(union integer x, unsigned int d);
-union integer Decompress(union integer y, unsigned int d);
-
 #endif
