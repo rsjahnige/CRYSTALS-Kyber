@@ -1,6 +1,9 @@
 CC = gcc
 CFLAGS = -Wall
 
+test05: sha3.o SHA_Testing.c
+	$(CC) $(CFLAGS) $^ -o $@
+
 test04: ml_kem.o CompressDecompress_test04.c
 	$(CC) $(CFLAGS) $^ -o $@
 
@@ -16,5 +19,8 @@ test01: ml_kem.o BitRev7_test01.c
 ml_kem.o: ml_kem.h ml_kem.c
 	$(CC) $(CFLAGS) -c $^
 
+sha3.o: sha3.h sha3.c
+	$(CC) $(CFLAGS) -c $^
+
 clean:
-	rm *.o *.gch
+	rm *.o *.gch *.txt
