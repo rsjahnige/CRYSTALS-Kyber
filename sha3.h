@@ -10,7 +10,6 @@
 #define SHA3_H
 
 #include <stdlib.h>
-#include <stdio.h>	// FOR TESTING ONLY
 
 // Data type used to create bit arrays
 union bit {
@@ -26,5 +25,8 @@ union hex* b2h(union bit* S, unsigned int n);
 
 void Theta(union bit* A, unsigned int w);
 void Rho(union bit* A, unsigned int w);
+void Pi(union bit* A, unsigned int w);
+void Chi(union bit* A, unsigned int w);
+void Iota(union bit* A, unsigned int ir, unsigned int w);
 
 #endif

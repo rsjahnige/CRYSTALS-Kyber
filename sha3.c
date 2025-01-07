@@ -1,9 +1,5 @@
 #include "sha3.h"
 
-// Iterator offset for x & y coordinates (see FIPS-202:3.1.4)
-// -> Should only be needed when dealing with 'lane' operations
-#define IT(i) ((i + 2) % 5)	
-
 // Conversion function from hexadecimal strings to the SHA-3 bit
 // strings they represent (FIPS-202:A-B.1)
 //
@@ -119,7 +115,8 @@ void Theta(union bit* A, unsigned int w) {
 	return;		// The state array, A, is modified in place
 }
 
-// Rho function defined in FIPS-202:3.2.2 - 
+// Rho function defined in FIPS-202:3.2.2 - the effect is to rotate each
+// bit in the lane by an offset dependent upon the fixed x and y coordinates
 //
 // NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
 void Rho(union bit* A, unsigned int w) {
@@ -152,5 +149,127 @@ void Rho(union bit* A, unsigned int w) {
 		x = yt;
 	}
 
-	return;		// The state array, A, has bee updated appropriately 
+	return;		// The state array, A, has been updated appropriately 
+}
+
+// Pi function defined in FIPS-202:3.2.3 - the effect is to rearrange the
+// positions of the lanes 
+//
+// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
+void Pi(union bit* A, unsigned int w) {
+	union bit Ap[5][5][w];
+
+	// Copy state array A into state array Ap so that A
+	// can be modified in place
+	for (int x=0; x < 5; x++) {
+		for (int y=0; y < 5; y++) {
+			for (int z=0; z < w; z++) {
+				Ap[x][y][z].b = A[w*(5*y+x)+z].b;
+			}
+		}
+	}
+
+	// Step 1: Rearrange the bits in each slice
+	for (int x=0; x < 5; x++) {
+		for (int y=0; y < 5; y++) {
+			for (int z=0; z < w; z++) {
+				A[w*(5*y+x)+z].b = Ap[(x+3*y)%5][x][z].b;
+			}
+		}
+	}
+
+
+	return;		// The state array, A, has been updated appropriately
+}
+
+// Chi function defined int FIPS-202:3.2.4 - the effect is to XOR each bit
+// with a non-linear function of two other bits in its row
+//
+// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
+void Chi(union bit* A, unsigned int w) {
+	union bit Ap[5][5][w];
+
+	// Copy state array A into state array Ap so that A
+	// can be modified in place
+	for (int x=0; x < 5; x++) {
+		for (int y=0; y < 5; y++) {
+			for (int z=0; z < w; z++) {
+				Ap[x][y][z].b = A[w*(5*y+x)+z].b;
+			}
+		}
+	}
+	
+	// Step 1: XOR each bit with a function of two other bits in its row
+	for (int x=0; x < 5; x++) {
+		for (int y=0; y < 5; y++) {
+			for (int z=0; z < w; z++) {
+				A[w*(5*y+x)+z].b = 
+					Ap[x][y][z].b ^ ((Ap[(x+1)%5][y][z].b ^ 1) & Ap[(x+2)%5][y][z].b);
+			}
+		}
+	}
+
+	return;
+}
+
+// Round Constant function defined in FIPS-202:3.2.5 - 
+// 
+// WARNING: This function makes the assumption that (unsigned int)
+// 		is a minimum of 8 bits
+union bit rc(unsigned int t) {
+	union bit R[9];
+
+	if ((t % 255) == 0) {
+		R[0].b = 1;
+		return R[0];
+	}
+
+	// Step 2: set R = 010000000
+	for (int i=0; i < 9; i++) {
+		R[i].b = 0;
+	}
+	R[1].b = 1;	
+
+	// Step 3: 
+	for (int i=1; i < (t % 255); i++) {
+		R[0].b = 0;
+		R[0].b ^= R[8].b;
+		R[4].b ^= R[8].b;
+		R[5].b ^= R[8].b;
+		R[6].b ^= R[8].b;
+		
+		for (int j=8; j > 0; j--) {
+			R[j].b = R[j-1].b;
+		}
+	}
+
+	return R[0];
+}
+
+// Iota function defined in FIP-202:3.2.5 - the effect is to modify some of the
+// bits of lane (0,0) in a manner that depends on the round index ir
+//
+// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
+void Iota(union bit* A, unsigned int ir, unsigned int w) {
+	union bit RC[w];
+	unsigned int l = 0;
+
+	while ((w >> l) != 1) l += 1;	// Determine value of l such that log2(w) = l
+	
+	// Step 2: Initialize round constant to 0^w
+	for (int i=0; i < w; i++) {
+		RC[i].b = 0;
+	}
+
+	// Step 3: Populate RC array using the rc() function
+	for (int j=0; j < l; j++) {
+		RC[(1<<j)-1] = rc(j+7*ir);
+	}
+
+	// Step 4: Modify lane (0,0) using the round constant RC
+	for (int z=0; z < w; z++) {
+		A[z].b ^= RC[z].b;
+	}
+
+	return;
 }

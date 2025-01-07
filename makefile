@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -g
 
 test05: sha3.o SHA_Testing.c
 	$(CC) $(CFLAGS) $^ -o $@

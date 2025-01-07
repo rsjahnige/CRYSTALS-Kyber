@@ -50,6 +50,36 @@ int main() {
 	for (int i=0; i < it; i++) {
 		printf("%x", hex_array[i].d);
 	}
+	printf("\n\n");
+
+	Pi(bit_string, 64);
+	free(hex_array);
+
+	hex_array = b2h(bit_string, 1600);
+	printf("Hex String (After Pi): ");
+	for (int i=0; i < it; i++) {
+		printf("%x", hex_array[i].d);
+	}
+	printf("\n\n");
+
+	Chi(bit_string, 64);
+	free(hex_array);
+
+	hex_array = b2h(bit_string, 1600);
+	printf("Hex String (After Chi): ");
+	for (int i=0; i < it; i++) {
+		printf("%x", hex_array[i].d);
+	}
+	printf("\n\n");
+
+	Iota(bit_string, 0, 64);
+	free(hex_array);
+
+	hex_array = b2h(bit_string, 1600);
+	printf("Hex String (After Iota): ");
+	for (int i=0; i < it; i++) {
+		printf("%x", hex_array[i].d);
+	}
 	printf("\n");
 
 	free(bit_string);
