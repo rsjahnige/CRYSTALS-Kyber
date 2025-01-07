@@ -35,21 +35,24 @@ int main() {
 	Theta(bit_string, 64); 
 	free(hex_array);
 
-	printf("Bit String (After Theta): ");
-	for (int i=0; i < 1600; i++) {
-		printf("%d", bit_string[i].b);
+	hex_array = b2h(bit_string, 1600);
+	printf("Hex String (After Theta): ");
+	for (int i=0; i < it; i++) {
+		printf("%x", hex_array[i].d);
 	}
 	printf("\n\n");
 
-	hex_array = b2h(bit_string, 1600);
-	free(bit_string);
+	Rho(bit_string, 64);
+	free(hex_array);
 
-	printf("Hex String (After Theta): ");
+	hex_array = b2h(bit_string, 1600);
+	printf("Hex String (After Rho): ");
 	for (int i=0; i < it; i++) {
 		printf("%x", hex_array[i].d);
 	}
 	printf("\n");
 
+	free(bit_string);
 	free(hex_array);
 	return 0;
 }

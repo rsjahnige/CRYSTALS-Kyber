@@ -11,12 +11,46 @@
 use strict;
 use warnings;
 
-my $fileName = 'Test_Examples/SHA3-224_Msg0.txt';
+my $numArgs = $#ARGV + 1;
+my $fileName = "";
+
+if ($numArgs == 1)
+{
+	if ($ARGV[0] =~ m/(\.txt)$/) 
+	{
+		$fileName = $ARGV[0];
+	}
+	else
+	{
+		$fileName = "ERROR";
+	}
+}
+else
+{
+	print "ERROR :: No command line arguments provided\n";
+	print "Usage: perl sha_ex_psr.pl [flags] fileName.txt\n";
+	print "\t-t	: hex_output.txt is populated with Round #0 - After Theta hex data\n";
+	exit;
+}
+
+if ($fileName eq "ERROR")
+{
+	print "ERROR :: No input file path found :: File format must be '.txt'\n";
+	exit;
+}
 
 open(FH_TEST, '<', $fileName) or die "ERROR :: $fileName not found\n";
 #open(FH_MSG, '>', 'bin_msg.txt') or die "ERROR :: could not open bin_msg.txt\n";
 open(FH_IN, '>', 'hex_input.txt') or die "ERROR :: could not open hex_input.txt\n";
 open(FH_OUT, '>', 'hex_output.txt') or die "ERROR :: could not open hex_output.txt\n";
+
+
+sub print_output 
+{
+	my $outData = <FH_TEST>;
+	$outData =~ s/\s//g;
+	print FH_OUT "$outData";
+}
 
 while (<FH_TEST>) 
 {
@@ -39,11 +73,15 @@ while (<FH_TEST>)
 		print FH_IN "$inData";
 	}	
 
-	if ($_ eq "After Theta\n") 
+=if ($_ eq "After Theta\n") 
 	{
-		my $outData = <FH_TEST>;
-		$outData =~ s/\s//g;
-		print FH_OUT "$outData";
+		print_output();
+	}
+=cut
+
+	if ($_ eq "After Rho\n")
+	{
+		print_output();
 	}
 }
 
@@ -51,3 +89,5 @@ close(FH_OUT);
 close(FH_IN);
 #close(FH_MSG);
 close(FH_TEST);
+
+exit;
