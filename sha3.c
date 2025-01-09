@@ -6,7 +6,7 @@
 // NOTE: len(H) = 2m & len(S) = n <= 8m = len(T)
 // WARNING: This function makes the assumption that (unsigned int)
 // 		is a minimum of 8 bits
-union bit* h2b(union hex* H, unsigned int m, unsigned int n) {
+union bit* h2b(const union hex* H, unsigned int m, unsigned int n) {
 	union bit* T;
 	union bit* S;
 	unsigned int h;
@@ -44,7 +44,7 @@ union bit* h2b(union hex* H, unsigned int m, unsigned int n) {
 // NOTE: len(S) = n & len(H) = 2 * ceiling(n/8) 
 // WARNING: This function makes the assumption that (unsigned int)
 // 		is a minimum of 8 bits
-union hex* b2h(union bit* S, unsigned int n) {
+union hex* b2h(const union bit* S, unsigned int n) {
 	union bit* T;
 	union hex* H;
 	unsigned int h = n % 8;
@@ -77,19 +77,17 @@ union hex* b2h(union bit* S, unsigned int n) {
 
 // Theta function defined in FIPS-202:3.2.1 - the effect is to XOR each
 // bit in the state array with the parities of two columns
-//
-// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
-void Theta(union bit* A, unsigned int w) {
-	union bit C[5][w];
-	union bit D[5][w];
+static union bit* Theta(union bit* A) {
+	union bit C[5][W];
+	union bit D[5][W];
 
 	// Step 1: build C array by taking the XOR sum of all
 	// 		bits in each column
 	for (int x=0; x < 5; x++) {
-		for (int z=0; z < w; z++) {
+		for (int z=0; z < W; z++) {
 			C[x][z].b = 0;
 			for (int y=0; y < 5; y++) {
-				C[x][z].b ^= A[w*(5*y+x)+z].b;
+				C[x][z].b ^= A[W*(5*y+x)+z].b;
 			}
 		}
 	}
@@ -97,8 +95,8 @@ void Theta(union bit* A, unsigned int w) {
 	// Step 2: build D array by taking the XOR sum of 2 columns 
 	// 		adjacent to each bit in the state array
 	for (int x=0; x < 5; x++) {
-		for (int z=0; z < w; z++) {
-			D[x][z].b = C[(x+4)%5][z].b ^ C[(x+1)%5][(z+w-1)%w].b;
+		for (int z=0; z < W; z++) {
+			D[x][z].b = C[(x+4)%5][z].b ^ C[(x+1)%5][(z+W-1)%W].b;
 		}
 	}
 
@@ -106,29 +104,27 @@ void Theta(union bit* A, unsigned int w) {
 	// 		state array, A
 	for (int x=0; x < 5; x++) {
 		for (int y=0; y < 5; y++) {
-			for (int z=0; z < w; z++) {
-				A[w*(5*y+x)+z].b ^= D[x][z].b;
+			for (int z=0; z < W; z++) {
+				A[W*(5*y+x)+z].b ^= D[x][z].b;
 			}
 		}
 	}
  
-	return;		// The state array, A, is modified in place
+	return A;		// The state array, A, is modified in place
 }
 
 // Rho function defined in FIPS-202:3.2.2 - the effect is to rotate each
 // bit in the lane by an offset dependent upon the fixed x and y coordinates
-//
-// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
-void Rho(union bit* A, unsigned int w) {
-	union bit Ap[5][5][w];
+static union bit* Rho(union bit* A) {
+	union bit Ap[5][5][W];
 	unsigned int x, y, yt, offset;
 
 	// Step 1 (modified): State array A is copied into state array
 	// 			Ap so that A can be modified in place
 	for (x=0; x < 5; x++) {
 		for (y=0; y < 5; y++) {
-			for (int z=0; z < w; z++) {
-				Ap[x][y][z].b = A[w*(5*y+x)+z].b;
+			for (int z=0; z < W; z++) {
+				Ap[x][y][z].b = A[W*(5*y+x)+z].b;
 			}
 		}
 	}
@@ -138,10 +134,10 @@ void Rho(union bit* A, unsigned int w) {
 	y=0;
 
 	// Step 3: Rotate the bits of each lane by the offset
-	for (int t=0; t < 23; t++) {
+	for (int t=0; t < 24; t++) {
 		offset = (t+1)*(t+2)/2;
-		for (int z=0; z < w; z++) {
-			A[w*(5*y+x)+z].b = Ap[x][y][(z-offset)%w].b;
+		for (int z=0; z < W; z++) {
+			A[W*(5*y+x)+z].b = Ap[x][y][(z-offset)%W].b;
 		}
 		// Update (x,y) coordinates in accordance with step 3b
 		yt = y;
@@ -149,22 +145,20 @@ void Rho(union bit* A, unsigned int w) {
 		x = yt;
 	}
 
-	return;		// The state array, A, has been updated appropriately 
+	return A;		// The state array, A, has been updated appropriately 
 }
 
 // Pi function defined in FIPS-202:3.2.3 - the effect is to rearrange the
 // positions of the lanes 
-//
-// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
-void Pi(union bit* A, unsigned int w) {
-	union bit Ap[5][5][w];
+static union bit* Pi(union bit* A) {
+	union bit Ap[5][5][W];
 
 	// Copy state array A into state array Ap so that A
 	// can be modified in place
 	for (int x=0; x < 5; x++) {
 		for (int y=0; y < 5; y++) {
-			for (int z=0; z < w; z++) {
-				Ap[x][y][z].b = A[w*(5*y+x)+z].b;
+			for (int z=0; z < W; z++) {
+				Ap[x][y][z].b = A[W*(5*y+x)+z].b;
 			}
 		}
 	}
@@ -172,29 +166,27 @@ void Pi(union bit* A, unsigned int w) {
 	// Step 1: Rearrange the bits in each slice
 	for (int x=0; x < 5; x++) {
 		for (int y=0; y < 5; y++) {
-			for (int z=0; z < w; z++) {
-				A[w*(5*y+x)+z].b = Ap[(x+3*y)%5][x][z].b;
+			for (int z=0; z < W; z++) {
+				A[W*(5*y+x)+z].b = Ap[(x+3*y)%5][x][z].b;
 			}
 		}
 	}
 
 
-	return;		// The state array, A, has been updated appropriately
+	return A;		// The state array, A, has been updated appropriately
 }
 
 // Chi function defined int FIPS-202:3.2.4 - the effect is to XOR each bit
 // with a non-linear function of two other bits in its row
-//
-// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
-void Chi(union bit* A, unsigned int w) {
-	union bit Ap[5][5][w];
+static union bit* Chi(union bit* A) {
+	union bit Ap[5][5][W];
 
 	// Copy state array A into state array Ap so that A
 	// can be modified in place
 	for (int x=0; x < 5; x++) {
 		for (int y=0; y < 5; y++) {
-			for (int z=0; z < w; z++) {
-				Ap[x][y][z].b = A[w*(5*y+x)+z].b;
+			for (int z=0; z < W; z++) {
+				Ap[x][y][z].b = A[W*(5*y+x)+z].b;
 			}
 		}
 	}
@@ -202,74 +194,82 @@ void Chi(union bit* A, unsigned int w) {
 	// Step 1: XOR each bit with a function of two other bits in its row
 	for (int x=0; x < 5; x++) {
 		for (int y=0; y < 5; y++) {
-			for (int z=0; z < w; z++) {
-				A[w*(5*y+x)+z].b = 
-					Ap[x][y][z].b ^ ((Ap[(x+1)%5][y][z].b ^ 1) & Ap[(x+2)%5][y][z].b);
+			for (int z=0; z < W; z++) {
+				A[W*(5*y+x)+z].b = 
+					Ap[x][y][z].b ^ ((Ap[(x+1)%5][y][z].b ^ 1) * Ap[(x+2)%5][y][z].b);
 			}
 		}
 	}
 
-	return;
+	return A;
 }
 
-// Round Constant function defined in FIPS-202:3.2.5 - 
+// Round Constant function defined in FIPS-202:3.2.5 - Generate the round
+// constant using a function that is based on a linear feedback shift
+// register 
 // 
 // WARNING: This function makes the assumption that (unsigned int)
 // 		is a minimum of 8 bits
-union bit rc(unsigned int t) {
+static union bit rc(unsigned int t) {
 	union bit R[9];
 
+	// Step 1: Return 1
 	if ((t % 255) == 0) {
 		R[0].b = 1;
 		return R[0];
 	}
 
-	// Step 2: set R = 010000000
+	// Step 2: set R = 0100000000
 	for (int i=0; i < 9; i++) {
 		R[i].b = 0;
 	}
 	R[1].b = 1;	
 
-	// Step 3: 
-	for (int i=1; i < (t % 255); i++) {
-		R[0].b = 0;
+	// Step 3: Determine the round constant 
+	for (int i=1; i <= (t % 255); i++) {
+		R[0].b = 0;			// Equivalent to 0 || R
 		R[0].b ^= R[8].b;
 		R[4].b ^= R[8].b;
 		R[5].b ^= R[8].b;
 		R[6].b ^= R[8].b;
 		
+		// Equivalent to R=Trunc8[R] - R[0] is reset to 0 above
 		for (int j=8; j > 0; j--) {
 			R[j].b = R[j-1].b;
 		}
 	}
 
-	return R[0];
+	return R[1];
 }
 
 // Iota function defined in FIP-202:3.2.5 - the effect is to modify some of the
 // bits of lane (0,0) in a manner that depends on the round index ir
-//
-// NOTE: w = length of z-axis (i.e., len(A)=b such that w=b/25)
-void Iota(union bit* A, unsigned int ir, unsigned int w) {
-	union bit RC[w];
-	unsigned int l = 0;
-
-	while ((w >> l) != 1) l += 1;	// Determine value of l such that log2(w) = l
+static union bit* Iota(union bit* A, unsigned int ir) {
+	union bit RC[W];
 	
-	// Step 2: Initialize round constant to 0^w
-	for (int i=0; i < w; i++) {
+	// Step 2: Initialize round constant to 0^W
+	for (int i=0; i < W; i++) {
 		RC[i].b = 0;
 	}
 
 	// Step 3: Populate RC array using the rc() function
-	for (int j=0; j < l; j++) {
+	for (int j=0; j <= L; j++) {
 		RC[(1<<j)-1] = rc(j+7*ir);
 	}
 
 	// Step 4: Modify lane (0,0) using the round constant RC
-	for (int z=0; z < w; z++) {
+	for (int z=0; z < W; z++) {
 		A[z].b ^= RC[z].b;
 	}
 
-	return;
+	return A;
+}
+
+union bit* Keccak_f(union bit S[B]) {
+
+	for (int i=(12+2*L-Nr); i < (12+2*L); i++) {
+		S = Iota(Chi(Pi(Rho(Theta(S)))), i);
+	}
+
+	return S;
 }

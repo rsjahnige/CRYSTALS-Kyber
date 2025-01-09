@@ -31,53 +31,15 @@ int main() {
 	fclose(fp);
 
 	bit_string = h2b(hex_array, it/2, 1600);
-
-	Theta(bit_string, 64); 
 	free(hex_array);
 
+	bit_string = Keccak_f(bit_string);
 	hex_array = b2h(bit_string, 1600);
-	printf("Hex String (After Theta): ");
+
+	printf("Hex String (After Permutation): \n");
 	for (int i=0; i < it; i++) {
-		printf("%x", hex_array[i].d);
-	}
-	printf("\n\n");
-
-	Rho(bit_string, 64);
-	free(hex_array);
-
-	hex_array = b2h(bit_string, 1600);
-	printf("Hex String (After Rho): ");
-	for (int i=0; i < it; i++) {
-		printf("%x", hex_array[i].d);
-	}
-	printf("\n\n");
-
-	Pi(bit_string, 64);
-	free(hex_array);
-
-	hex_array = b2h(bit_string, 1600);
-	printf("Hex String (After Pi): ");
-	for (int i=0; i < it; i++) {
-		printf("%x", hex_array[i].d);
-	}
-	printf("\n\n");
-
-	Chi(bit_string, 64);
-	free(hex_array);
-
-	hex_array = b2h(bit_string, 1600);
-	printf("Hex String (After Chi): ");
-	for (int i=0; i < it; i++) {
-		printf("%x", hex_array[i].d);
-	}
-	printf("\n\n");
-
-	Iota(bit_string, 0, 64);
-	free(hex_array);
-
-	hex_array = b2h(bit_string, 1600);
-	printf("Hex String (After Iota): ");
-	for (int i=0; i < it; i++) {
+		if (((i % 2) == 0) && (i != 0)) printf(" ");
+		if (((i % 32) == 0) && (i != 0)) printf("\n");
 		printf("%x", hex_array[i].d);
 	}
 	printf("\n");
