@@ -1,50 +1,86 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "sha3.h"
 
-int main() {
+int main(int argc, char* argv[]) {
 	
-	FILE *fp;
-	unsigned int byte;
-	unsigned int low = 15;		// low four bits of a byte
-	unsigned int it = 0;
+	FILE *in_fp;
+	FILE *out_fp;
 
-	union hex *hex_array;
-	union bit *bit_string;
+	unsigned long bin_len;
+	unsigned char digit;
+	unsigned int dgstLen;
+	unsigned int capacity;
 
-	fp = fopen("hex_input.txt", "r");
+	union bit* bin_input;
+	union bit* bin_output;
+	union hex* hex_output;
 
-	if (fp == NULL) {
-		printf("ERROR :: could not open hex_input.txt\n");
+	if (argc < 3) {
+		printf("ERROR :: Invalid number of arguments provided: %d\n", argc);
+		printf("Accepted format: ./test05 [Hash | XOF] [{224,256,384,512} | {128,256}]\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (strcmp(argv[1], "XOF") == 0) {
+		if (argc != 4) exit(EXIT_FAILURE);
+		capacity = 2 * atoi(argv[2]);
+		dgstLen = atoi(argv[3]);	
+	} else {
+		if (argc != 3) exit(EXIT_FAILURE);
+		dgstLen = atoi(argv[2]);
+	}
+
+	// Open input file
+	in_fp = fopen("bin_msg.txt", "r");
+	if (in_fp == NULL) {
+		printf("ERROR :: could not open bin_msg.txt\n");
 		return 1;
 	}
 
-	fseek(fp, 0L, SEEK_END);
-	hex_array = malloc(sizeof(union hex) * ftell(fp));
-	rewind(fp);
+	// Determine the length of the input binary message
+	fseek(in_fp, 0L, SEEK_END);
+	bin_len = ftell(in_fp);
+	rewind(in_fp);
 
-	while (fscanf(fp, "%02x", &byte) != EOF) {
-		hex_array[it].d = (byte >> 4) & low; 
-		hex_array[it+1].d = byte & low;
-		it += 2;
+	// Read binary digits from input file (bin_msg.txt)
+	bin_input = malloc(sizeof(union bit) * bin_len);
+	for (int i=0; i < bin_len; i++) {
+		fscanf(in_fp, "%c", &digit);
+		bin_input[i].b = digit & 0x01;
 	}
-	fclose(fp);
+	fclose(in_fp);
 
-	bit_string = h2b(hex_array, it/2, 1600);
-	free(hex_array);
-
-	bit_string = Keccak_f(bit_string);
-	hex_array = b2h(bit_string, 1600);
-
-	printf("Hex String (After Permutation): \n");
-	for (int i=0; i < it; i++) {
-		if (((i % 2) == 0) && (i != 0)) printf(" ");
-		if (((i % 32) == 0) && (i != 0)) printf("\n");
-		printf("%x", hex_array[i].d);
+	// Perform desired Hash or XOF depending on user input
+	if (strcmp(argv[1], "Hash") == 0) {
+		bin_output = sha3_b(bin_input, bin_len, dgstLen, 2*dgstLen, (union bit[]){0,1,0,0});
+	} else if (strcmp(argv[1], "XOF") == 0) {
+		bin_output = sha3_b(bin_input, bin_len, dgstLen, capacity, (union bit[]){1,1,1,1});
+	} else {
+		printf("Invalid parameter provide as argv[1] :: Must be 'Hash' or 'XOF'\n");
+		exit(EXIT_FAILURE);
 	}
-	printf("\n");
 
-	free(bit_string);
-	free(hex_array);
+	// Convert resulting binary string to a hex array
+	hex_output = b2h(bin_output, dgstLen); 
+
+	// Open output file
+	out_fp = fopen("act_output.txt", "w");
+	if (out_fp == NULL) {
+		printf("ERROR :: could not open act_output.txt.txt\n");
+		return 1;
+	}
+
+	// Write resulting hex array to output file
+	for (int i=0; i < dgstLen/4; i++) {
+		fprintf(out_fp, "%x", hex_output[i].d);
+	}
+	fclose(out_fp);
+		
+	free(bin_input);
+	free(bin_output);
+	free(hex_output);
+
 	return 0;
 }
