@@ -246,7 +246,7 @@ static union bit* pad(unsigned int x, unsigned int m) {
 // 	If q=1, then len(pad(x,m)) <= r					(2) 
 // 		=> len(pad(x,m) = r - (m % r)
 // 	If q=2, then len(pad(x,m)) = r+1				(3)
-// 		=> -m-2 = -1 % r => -m = 1 % r
+// 		=> -m-2 = -1 % r => -m % r = 1 % r
 // 		=> m % r = r - 1
 static union bit* Sponge(union bit* N, unsigned int m, 
 			unsigned int d, unsigned int c) {
