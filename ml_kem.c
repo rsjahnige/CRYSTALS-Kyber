@@ -36,7 +36,7 @@ static union byte* BitsToBytes(union bit* b, unsigned int l) {
 
 	for (int i=0; i < l; i++) {
 		if ((i % 8) == 0) B[i/8].e = 0b00000000;	// initialize byte array index
-		B[i/8].e |= (b[i].o & 0b00000001) << (i % 8);	// B[i/8] = B[i/8] + b[i] * 2^(i%8)
+		B[i/8].e |= (b[i].b & 0b00000001) << (i % 8);	// B[i/8] = B[i/8] + b[i] * 2^(i%8)
 	}
 
 	return B;
@@ -53,9 +53,9 @@ static union bit* BytesToBits(union byte* B, unsigned int L) {
 	C = malloc(sizeof(union byte) * L);
 
 	for (int i=0; i < L; i++) {
-		C[i].e = B[i].e;					// Copy B[i] into array C[i] in B^l
+		C[i].e = B[i].e;					// Copy B[i] into array C[i] in B^L
 		for (int j=0; j < 8; j++) {
-			b[(8 * i) + j].o = C[i].e & 0b00000001;		// b[8i+j] = C[i] % 2 
+			b[(8 * i) + j].b = C[i].e & 0b00000001;		// b[8i+j] = C[i] % 2 
 			C[i].e = C[i].e >> 1;				// C[i] = C[i] / 2
 		}
 	}
@@ -88,7 +88,7 @@ static union integer Compress(union integer x, unsigned int d) {
 //
 // NOTE: Similar to the Compress() funtion, the Decompress() function has no
 // 	affect on integers in Zq and bit lengths of the integers do not change,
-// 	only the value do to mimic the desired behavior
+// 	only the values do to mimic the desired behavior
 static union integer Decompress(union integer y, unsigned int d) {
 	union integer quo, rem, div, dsr;
 
@@ -120,7 +120,7 @@ static union byte* ByteEncode(union integer* F, unsigned int d) {
 	for (int i=0; i < 256; i++) {
 		a.t = F[i].t;					// 'a' in Zm
 		for (int j=0; j < d; j++) {	
-			b[(i * d) + j].o = a.t & 0x001;		// b[i*d+j] = a % 2	
+			b[(i * d) + j].b = a.t & 0x001;		// b[i*d+j] = a % 2	
 			a.t >>= 1;				// a = (a - b[i*d+j])/2
 		}
 
@@ -155,8 +155,8 @@ static union integer* ByteDecode(union byte* B, unsigned int d) {
 		F[i].t = 0x000;		// initialize F[i]
 
 		// F[i] = sum_j=0->(d-1){(b[i*d+j]*2^j) mod m}
-		for (int j=0; j < d; j++){
-			F[i].t |= (b[(i * d) + j].o * (0x001 << j)) % m;
+		for (int j=0; j < d; j++) {
+			F[i].t |= (b[(i * d) + j].b * (0x001 << j)) % m;
 		}			
 	}
 
@@ -168,3 +168,193 @@ static union integer* ByteDecode(union byte* B, unsigned int d) {
 /****************************************
  * Sampling Algorithms
  * *************************************/
+
+// Uniform sampling of NTT representations - converts a seed together
+// with two indexing bytes into a polynomial in the NTT domain (i.e., Tq)
+//
+// Note: The input byte array is of length 34 and the ouput is an array 
+// 	in Zq^256 that contains the coefficients of the sampled element of 
+// 	Tq (FIPS-203:4.2.2)
+union integer* SampleNTT(union byte* B) {
+	union integer* a;
+	union bit* b;
+	union bit* S;
+	union byte* C;
+	union integer I[3];
+	union integer d1, d2;
+	unsigned int j = 0; 
+	int k = 0;
+
+	a = malloc(sizeof(union integer) * 256);
+	C = malloc(sizeof(union byte) * 3);
+
+	b = BytesToBits(B, 34);						// Convert B to bit array to inject into SHA algo
+	S = sha3_b(b, 34*8, 280*8*3, 256, (union bit[]){1,1,1,1});	// XOF.Init() & XOF.Absorb(B)	
+
+	while (j < 256) {
+		C = BitsToBytes(S+k, 8*3);				// XOF.Squeeze(3) 
+		for (int i=0; i < 3; i++) I[i].t = C[i].e;		// Increase address space of C 
+
+		// Note that 0 <= d1,d2 < 2^12
+		d1.t = I[0].t + 256 * (I[1].t % 16);			// d1 <- C[0] + 256 * (C[1] % 16)
+		d2.t = (I[1].t / 16) + (16 * I[2].t);			// d2 <- floor(C[1] / 16) + 16 * C[2]
+
+		if (d1.t < Q) {
+			a[j] = d1;
+			j += 1;
+		}
+
+		if ((d2.t < Q) && (j < 256)) {
+			a[j] = d2;
+			j += 1;
+		}
+
+		// Sets a limit on the number of iterations -
+		// see FIPS-203:A-B
+		k += (8 * 3);
+		if (k >= (280*8*3 - 8*3)) {
+			k = -1;
+			break;
+		}
+	}
+
+	free(b);
+	free(S);
+	free(C);
+
+	// If limit has been reached, then change the
+	// last 2 indices of B and try again
+	if (k == -1) {
+		free(a);
+		B[32].e += 1;
+		B[33].e += 1;
+		return SampleNTT(B);
+	}
+
+	return a;
+}
+
+// Sample from the Centered Binomial Distribution - given a stream of uniformly
+// random bytes of length 64*n, derive the coefficient array of a polynomial f in 
+// Rq according the distribution Dn(Rq) (see FIPS-203:4.2.2)
+//
+// Note: The distribution Dn(Rq) of polynomials in Rq are sometimes referred to
+// 	as "errors" or "noise"
+union integer* SamplePolyCBD(union byte* B, unsigned int n) {
+	union integer* f;
+	union bit* b;
+	union integer x, y;
+
+	b = BytesToBits(B, 64*n);					// Convert B to a bit array
+	f = malloc(sizeof(union integer) * 256);			// f is in Zq^256
+
+	for (int i=0; i < 256; i++) {
+		x.t = 0;
+		y.t = 0;
+		for (int j=0; j < n; j++) x.t += b[2*i*n+j].b;		// 0 <= x <= n
+		for (int j=0; j < n; j++) y.t += b[2*i*n+n+j].b;	// 0 <= y <= n
+
+		// 0<=f[i]<=n OR Q-n<=f[i]<=Q-1
+		if (x.t >= y.t) f[i].t = x.t - y.t;
+		else f[i].t = Q - (y.t - x.t);
+	}
+
+	return f;
+}
+
+/****************************************
+ * Number-Theoretic Transform
+ ***************************************/
+
+union integer* NTT(union integer* f) {
+	union integer zeta, t;		// 24-bit integers
+	union byte i, pow;		// 7-bits bytes 
+	union integer* fh;		// fh = NTT of f in Zq^256
+
+	// Copy input array into fh
+	fh = malloc(sizeof(union integer) * 256);
+	for (int j=0; j < 256; j++) fh[j] = f[j];
+
+	i.s = 1;
+	for (int len=128; len >= 2; len /= 2) {
+		for (int start=0; start < 256; start += (2*len)) {
+
+			// Derive the value of zeta using BitRev7(i) -
+			// equivalent to zeta = (17^BitRev7(i)) % Q
+			zeta.l = 1;
+			pow = BitRev7(i);
+			while (pow.s > 0) { 
+				zeta.l = (zeta.l * 17) % Q;
+				pow.s -= 1;
+			}
+			i.s += 1;
+
+			// Update fh in place 
+			for (int j=start; j < (start + len); j++) {
+				// Calculate t - note that 3328*3328 < 2^24
+				t.l = (zeta.l * fh[j+len].t) % Q;
+
+				// Set fh[j+len] - workaround for negative mod arithmatic
+				// with unsigned int
+				if (fh[j].t >= t.l) fh[j+len].t = fh[j].t - t.l;	
+				else fh[j+len].t = Q - (t.l - fh[j].t);
+
+				// Set fh[j] - note that addition needs to be done
+				// in the 24-bit address space
+				t.l = (fh[j].t + t.l) % Q;
+				fh[j].t = t.l;
+			}
+		}
+	}
+
+	return fh;
+}
+
+union integer* InverseNTT(union integer* fh) {
+	union integer* f;
+	union byte i, pow;		// 7-bit bytes
+	union integer zeta, t, temp;	// 24-bit integers
+
+	// Copy input array into f
+	f = malloc(sizeof(union integer) * 256);
+	for (int i=0; i < 256; i++) f[i] = fh[i];
+
+	i.s = 127;
+	for (int len=2; len <= 128; len *= 2) {
+		for (int start=0; start < 256; start += (2*len)) {
+			
+			// Derive the value of zeta using BitRev7(i) -
+			// equivalent to zeta = (17^BitRev7(i)) % Q
+			zeta.l = 1;
+			pow = BitRev7(i);
+			while (pow.s > 0) { 
+				zeta.l = (zeta.l * 17) % Q;
+				pow.s -= 1;
+			}
+			i.s -= 1;
+
+			for (int j=start; j < (start + len); j++) {
+				t.l = f[j].t;		// Increase address space
+
+				// Set fh[j] - note that addition needs to be done
+				// in the 24-bit address space
+				temp.l = (t.l + f[j+len].t) % Q;
+				f[j].t = temp.l;
+
+				// Set fh[j+len] - workaround for negative mod arithmatic
+				// with unsigned int
+				if (f[j+len].t >= t.l) temp.l = f[j+len].t - t.l;
+				else temp.l = Q - (t.l - f[j+len].t);
+				temp.l = (zeta.l * temp.l) % Q;
+				f[j+len].t = temp.l;
+			}
+		}
+	}
+
+	for (int j=0; j < 256; j++) {
+		temp.l = (f[j].t * 3303) % Q;
+		f[j].t = temp.l;
+	}
+
+	return f;
+}
