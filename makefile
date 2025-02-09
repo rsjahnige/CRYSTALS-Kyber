@@ -1,6 +1,15 @@
 CC = gcc
 CFLAGS = -Wall -g
 
+test10: sha3.o ml_kem.o PKE_EncryptDecrypt_test.c
+	$(CC) $(CFLAGS) $^ -o $@
+
+test09: sha3.o ml_kem.o KeyGen_test.c
+	$(CC) $(CFLAGS) $^ -o $@
+
+gammaTest: sha3.o ml_kem.o GammaLogic_test.c
+	$(CC) $(CFLAGS) $^ -o $@
+
 test08: sha3.o ml_kem.o NTT_test08.c
 	$(CC) $(CFLAGS) $^ -o $@
 

@@ -10,6 +10,7 @@
 
 #include "sha3.h"
 #include <stdlib.h>	// dynamic memory allocation
+#include <stdio.h>
 
 // Global integer constants - defined in FIPS-203:2.4
 #define N 256
@@ -18,11 +19,6 @@
 // Global integers - intialized when a parameter set 
 // is selected (see FIP-203:8)
 //int k, n1, n2, du, dv;
-
-//// Data type used to create bit arrays
-//union bit {
-//	unsigned int o : 1;	// binary digit in {0,1}	
-//};
 
 // "byte" is a loosely defined term, so for this program it will
 // take on a couple different forms - be careful! 
@@ -41,10 +37,21 @@ union integer {
 	unsigned int l : 24; 	// twenty-four bit integer - used for real number calculations
 };
 
-union integer* SampleNTT(union byte* B);
-union integer* SamplePolyCBD(union byte* B, unsigned int n);
+struct ML_KEM {
+	union byte k;			// dimensions of the matrix A and vectors s, e, y, and e1
+	union byte n1;			// specifies the distribution for generating vectors s, e, and y
+	union byte n2;			// specifies the distribution for generating vectors e1 and e2
+	union byte du;			// parameter for funtion calls in Encrypt() and Decrypt() 
+	union byte dv;			// parameter for funtion calls in Encrypt() and Decrypt()
+};
 
-union integer* NTT(union integer* f);
-union integer* InverseNTT(union integer* fh);
+struct PKE {
+	union byte** ek;		// encryption key - public
+	union byte** dk;		// decryption key - private
+	union byte* rho;		// 32-byte seed - public
+};
+
+struct PKE KeyGen(const struct ML_KEM* params, const union byte* d);
+union byte* Encrypt(const struct ML_KEM* params, const struct PKE* keys, const union byte* m, const union byte* r);
 
 #endif
