@@ -429,26 +429,8 @@ static union integer* MultiplyNTTs(const union integer* fh, const union integer*
 }
 
 /*************************************
- * K-PKE Component Scheme Algorithms
+ * Auxiliary Algorithms
  ************************************/
-
-// The G function takes a variable length input `seed` of length `len`
-// and produces a 64-byte output that can be split into two 32-byte 
-// outputs (FIPS-203:4.1)
-static union byte* G(const union byte* seed, unsigned int len) {
-	union bit* hash;
-	union bit* input;
-	union byte* result;
-
-	input = BytesToBits(seed, len);
-	hash = sha3_b(input, len*8, 512, 512*2, (union bit[]){0,1,0,0});
-	result = BitsToBytes(hash, 512);
-
-	free(input);
-	free(hash);
-
-	return result;
-}
 
 // The Pseudorandom Function (PRF) takes a parameter `n` in {2,3}, one
 // 32-byte input, `s`, and one 1-byte input, `b`
@@ -475,6 +457,40 @@ static union byte* PRF(const union byte* s, union byte b, unsigned int n) {
 	return result;
 }
 
+static union byte* H(const union byte* seed, unsigned int len) {
+	union bit* hash;
+	union bit* input;
+	union byte* result;
+
+	input = BytesToBits(seed, len);
+	hash = sha3_b(input, len*8, 256, 256*2, (union bit[]){0,1,0,0});
+	result = BitsToBytes(hash, 256);
+
+	free(input);
+	free(hash);
+
+	return result;
+}
+
+// The G function takes a variable length input `seed` of length `len`
+// and produces a 64-byte output that can be split into two 32-byte 
+// outputs (FIPS-203:4.1)
+static union byte* G(const union byte* seed, unsigned int len) {
+	union bit* hash;
+	union bit* input;
+	union byte* result;
+
+	input = BytesToBits(seed, len);
+	hash = sha3_b(input, len*8, 512, 512*2, (union bit[]){0,1,0,0});
+	result = BitsToBytes(hash, 512);
+
+	free(input);
+	free(hash);
+
+	return result;
+}
+
+
 static union integer* PolyAddition(const union integer* u, const union integer* v) {
 	union integer temp;
 	union integer* z;
@@ -484,6 +500,24 @@ static union integer* PolyAddition(const union integer* u, const union integer* 
 	for (int i=0; i < 256; i++) {
 		temp.l = u[i].t;			// increase address space for addition
 		z[i].t = (temp.l + v[i].t) % Q;		// perform addition and cast back to 12-bit address space
+	}
+
+	return z;
+}
+
+static union integer* PolySubtraction(const union integer* u, const union integer* v) {
+	union integer temp;
+	union integer* z;
+
+	z = malloc(sizeof(union integer) * 256);
+
+	for (int i=0; i < 256; i++) {
+		if (u[i].t < v[i].t) {
+			temp.t = v[i].t - u[i].t;
+			z[i].t = Q - temp.t;
+		} else {
+			z[i].t = u[i].t - v[i].t;
+		}	
 	}
 
 	return z;
@@ -511,27 +545,31 @@ static union integer* VectorMultiply(union integer** u, union integer** v,
 	return w;
 }
 
+/*************************************
+ * K-PKE Component Scheme Algorithms
+ ************************************/
 
 struct PKE KeyGen(const struct ML_KEM* params, const union byte* d) {
+
+	// Function output
+	struct PKE keys;
 
 	// Temporary arrays
 	union byte* output;
 	union integer* sample;
 	union integer* temp;
-
-	union byte rho[34];				// matrix `A` seed + 2 bytes
-	union byte sigma[32];				// secret `s` and noise `e` seed
 	union byte rand[33];				// randomness input + one byte (d || params.k)
 
+	// K-PKE.KenGen() defined variables
 	union byte n;
+	union byte rho[34];				// matrix `A` seed + 2 bytes
+	union byte sigma[32];				// secret `s` and noise `e` seed
 	union integer* A[params->k.e][params->k.e];	// pseudorandom coefficients
 	union integer* s[params->k.e];			// secret 
 	union integer* e[params->k.e];			// noise
 	union integer* t[params->k.e];			// collection of "noisy" linear equations
 
-	struct PKE keys;				// function output
-
-	n.e = 0;	// initialize `n` to 0
+	n.e = 0;	// initialize n to 0
 
 	// Concatenate byte array d with params->k
 	for (int i=0; i < 32; i++) rand[i] = d[i];
@@ -591,20 +629,32 @@ struct PKE KeyGen(const struct ML_KEM* params, const union byte* d) {
 	}
 
 	// Allocate memory for PKE struct
-	keys.ek = malloc(sizeof(union byte*) * params->k.e);
-	keys.dk = malloc(sizeof(union byte*) * params->k.e);
-	keys.rho = malloc(sizeof(union byte) * 32);
-	
-	// Copy first 32 indices of local `rho` array into `keys.rho` struct
-	for (int i=0; i < 32; i++) {
-		keys.rho[i] = rho[i];
+	keys.ek_len = 384 * params->k.e + 32;
+	keys.dk_len = 384 * params->k.e;
+	keys.ek = malloc(sizeof(union byte) * keys.ek_len);
+	keys.dk = malloc(sizeof(union byte) * keys.dk_len);
+
+	// Run ByteEncode k times to generate the encryption key
+	for (int i=0; i < params->k.e; i++) {
+		output = ByteEncode(t[i], 12);
+		for (int j=0; j < 384; j++) {
+			keys.ek[384*i+j] = output[j];
+		}
+		free(output);
 	}
 
-	// Run ByteEncode k times to generate the encryption and
-	// decryption keys
+	// Append first 32 indices of local `rho` array to the end of `keys.ek`
+	for (int i=0; i < 32; i++) {
+		keys.ek[384*params->k.e+i] = rho[i];
+	}
+
+	// Run ByteEncode k times to generate the decryption key
 	for (int i=0; i < params->k.e; i++) {
-		keys.ek[i] = ByteEncode(t[i], 12);
-		keys.dk[i] = ByteEncode(s[i], 12);
+		output = ByteEncode(s[i], 12);
+		for (int j=0; j < 384; j++) {
+			keys.dk[384*i+j] = output[j];
+		}
+		free(output);
 	}
 
 	// Free up dynamically allocated memory
@@ -620,7 +670,7 @@ struct PKE KeyGen(const struct ML_KEM* params, const union byte* d) {
 	return keys;
 }
 
-union byte* Encrypt(const struct ML_KEM* params, const struct PKE* keys, 
+union byte* Encrypt(const struct ML_KEM* params, union byte* ek, 
 			const union byte* m, const union byte* r) {
 
 	// Ciphertext arrays
@@ -634,31 +684,33 @@ union byte* Encrypt(const struct ML_KEM* params, const struct PKE* keys,
 	union integer* sample;
 	union integer* temp1;
 	union integer* temp2;
-				
+	
+	// K-PKE.Encrypt() defined variables	
 	union byte n;
 	union byte rho[34];
+	union integer mu[256];				
 	union integer* t[params->k.e];
 	union integer* y[params->k.e];
 	union integer* e1[params->k.e];
 	union integer* e2;
 	union integer* u[params->k.e];
 	union integer* v;
-	union integer mu[256];
 	union integer* At[params->k.e][params->k.e];	// Transpose of matrix A
 
 	n.e = 0;	// initialize n to 0
 
 	// Run ByteDecode() k times to decode t in (Zq^256)^k
 	for (int i=0; i < params->k.e; i++) {
-		t[i] = ByteDecode(keys->ek[i], 12); 
+		t[i] = ByteDecode(ek+(384*i), 12); 
 	}
 
 	// Copy 32-byte set to local array
 	for (int i=0; i < 32; i++) {
-		rho[i].e = keys->rho[i].e;
+		rho[i] = ek[384*params->k.e + i];
 	}
 
-	// Re-generate matrix A in (Zq^256)^(kxk) sampled in KenGen()
+	// Re-generate matrix A in (Zq^256)^(kxk) sampled in KenGen() - 
+	// note that the A transpose is generated here
 	for (int i=0; i < params->k.e; i++) {
 		for (int j=0; j < params->k.e; j++) {
 			rho[32].e = j;
@@ -695,28 +747,29 @@ union byte* Encrypt(const struct ML_KEM* params, const struct PKE* keys,
 	e2 = SamplePolyCBD(output, params->n2.e);
 	free(output);
 
-	// Generate vector `u` in the ring Rq - NTT^-1(At * y) + e1
+	// Generate vector u in the ring Rq - NTT^-1(At * y) + e1
 	for (int i=0; i < params->k.e; i++) {
 		
-		temp1 = VectorMultiply(At[i], y, params->k.e);	// Perfrom vector multiplication in the NTT domain
-		temp2 = InverseNTT(temp1);			// Transform `temp1` from Tq to Rq
+		temp1 = VectorMultiply(At[i], y, params->k.e);	// NTT domain (i.e., Tq)
+		temp2 = InverseNTT(temp1);			// Transform to Rq
 
-		// Add vector `e1[i]` to vector u[i] in the ring Rq
+		// Add noise vector e1 to At*y - u[i] is in the ring Rq
 		u[i] = PolyAddition(temp2, e1[i]);
 
 		free(temp1);
 		free(temp2);
 	}
 
+	// Encode the input message m as mu
 	temp1 = ByteDecode(m, 1);
 	for (int i=0; i < 256; i++) {
 		mu[i] = Decompress(temp1[i], 1);
 	}
 	free(temp1);
 
-	// Encode plaintext `m` into polynomial `v`
-	temp1 = VectorMultiply(t, y, params->k.e);
-	temp2 = InverseNTT(temp1);
+	// Transform encoded message mu into polynomial v
+	temp1 = VectorMultiply(t, y, params->k.e);		// NTT domain (i.e., Tq)
+	temp2 = InverseNTT(temp1);				// Transform to Rq
 
 	free(temp1);
 
@@ -777,4 +830,133 @@ union byte* Encrypt(const struct ML_KEM* params, const struct PKE* keys,
 	free(c2);
 
 	return c;
+}
+
+union byte* Decrypt(const struct ML_KEM* params, union byte* dk, 
+			const union byte* c) {
+
+	// Function ouptut
+	union byte* m;
+
+	// Ciphertext variables
+	union byte c1[params->k.e][32*params->du.e];
+	union byte c2[32*params->dv.e];
+	unsigned int c1_len, c2_len;
+
+	// Temporary arrays
+	union integer* temp1;
+	union integer* temp2;
+
+	// K-PKE.Decrypt() defined variables
+	union integer* u[params->k.e];
+	union integer* v;
+	union integer* s[params->k.e];
+	union integer* w;
+
+	// Split ciphertext into 2 byte arrays
+	c1_len = 32 * params->du.e;
+	c2_len = 32 * params->dv.e;
+	for (int i=0; i < params->k.e; i++) {
+		for (int j=0; j < c1_len; j++) {
+			c1[i][j] = c[i*c1_len + j];
+		}
+	}
+
+	c1_len *= params->k.e;
+	for (int i=0; i < c2_len; i++) {
+		c2[i] = c[i+c1_len];
+	}
+
+	// Generate coefficient array u in the NTT domain - u in (R2^du)^k		
+	for (int i=0; i < params->k.e; i++) {
+		temp1 = ByteDecode(c1[i], params->du.e);
+		
+		for (int j=0; j < 256; j++) {
+			temp1[j] = Decompress(temp1[j], params->du.e);
+		}
+
+		u[i] = NTT(temp1);
+		free(temp1);
+	}
+
+	// Generate the constant term v in the ring R2^dv
+	v = ByteDecode(c2, params->dv.e);
+	for (int i=0; i < 256; i++) {
+		v[i] = Decompress(v[i], params->dv.e);
+	}
+
+	// Decode the decryption key dk into the secrect variable s in Rq
+	for (int i=0; i < params->k.e; i++) {
+		s[i] = ByteDecode(dk+(384*i), 12);
+	}
+
+	// Calculate w = v - InvertseNTT(st * u) resulting in w in Rq
+	temp1 = VectorMultiply(s, u, params->k.e);
+	temp2 = InverseNTT(temp1);
+	w = PolySubtraction(v, temp2);
+
+	free(temp1);
+	free(temp2);
+
+	// Decode plaintext message m from w
+	for (int i=0; i < 256; i++) {
+		w[i] = Compress(w[i], 1);
+	}
+	m = ByteEncode(w, 1);
+
+	// Free up dynamically allocated memory
+	for (int i=0; i < params->k.e; i++) {
+		free(u[i]);
+		free(s[i]);
+	}
+	free(v);
+	free(w);
+
+	return m;
+}
+
+/*************************************
+ * ML-KEM Internal Algorithms
+ ************************************/
+
+struct PKE KeyGen_internal(const struct ML_KEM* params, union byte* d, union byte* z) {
+	
+	struct PKE pke_keys;
+	struct PKE kem_keys;
+
+	union byte* H_ek;
+	unsigned int it;
+
+	pke_keys = KeyGen(params, d);
+
+	kem_keys.ek = pke_keys.ek;
+	kem_keys.ek_len = pke_keys.ek_len;
+
+	kem_keys.dk_len = 768 * params->k.e + 96;
+	kem_keys.dk = malloc(sizeof(union byte) * kem_keys.dk_len);
+	
+	for (int i=0; i < pke_keys.dk_len; i++) {
+		kem_keys.dk[i] = pke_keys.dk[i];
+	}
+
+	it = pke_keys.dk_len;
+	for (int i=0; i < kem_keys.ek_len; i++) {
+		kem_keys.dk[i+it] = kem_keys.ek[i];
+	}
+
+	H_ek = H(kem_keys.ek, kem_keys.ek_len);
+
+	it += kem_keys.ek_len;
+	for (int i=0; i < 32; i++) {
+		kem_keys.dk[i+it] = H_ek[i];
+	}
+
+	it += 32;
+	for (int i=0; i < 32; i++) {
+		kem_keys.dk[i+it] = z[i];
+	}
+
+	free(pke_keys.dk);
+
+	return kem_keys;
 }

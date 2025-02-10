@@ -8,6 +8,7 @@ int main() {
 	union byte randomness[32];
 	union byte message[32];
 	union byte* ciphertext;
+	union byte* dmessage;
 	unsigned int len;
 
 	// Initialize randomness array
@@ -16,10 +17,16 @@ int main() {
 		message[i].e = i % 5;
 	}
 
+	printf("Plaintext: ");
+	for (int i=0; i < 32; i++) {
+		printf("%d ", message[i].e);
+	}
+	printf("\n\n");
+
 	// Generate public-private key pair
 	keys = KeyGen(&params, randomness);
 
-	ciphertext = Encrypt(&params, &keys, message, randomness);	
+	ciphertext = Encrypt(&params, keys.ek, message, randomness);	
 
 	len = 32 * (params.du.e * params.k.e + params.dv.e);
 	
@@ -29,16 +36,20 @@ int main() {
 	}	
 	printf("\n\n");
 
-	// Free up memory
-	for (int i=0; i < params.k.e; i++) {
-		free(keys.ek[i]);
-		free(keys.dk[i]);
+	dmessage = Decrypt(&params, keys.dk, ciphertext);
+
+	printf("Plaintext: ");
+	for (int i=0; i < 32; i++) {
+		printf("%d ", dmessage[i].e);
 	}
+	printf("\n\n");
+
+	// Free up memory
 	free(keys.ek);
 	free(keys.dk);
-	free(keys.rho);
 
 	free(ciphertext);
+	free(dmessage);
 
 	return 0;
 }

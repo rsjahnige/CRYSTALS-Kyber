@@ -46,12 +46,14 @@ struct ML_KEM {
 };
 
 struct PKE {
-	union byte** ek;		// encryption key - public
-	union byte** dk;		// decryption key - private
-	union byte* rho;		// 32-byte seed - public
+	union byte* ek;			// encryption key - public
+	union byte* dk;			// decryption key - private
+	unsigned int ek_len;		// encryption key length
+	unsigned int dk_len;		// decryption key length
 };
 
 struct PKE KeyGen(const struct ML_KEM* params, const union byte* d);
-union byte* Encrypt(const struct ML_KEM* params, const struct PKE* keys, const union byte* m, const union byte* r);
+union byte* Encrypt(const struct ML_KEM* params, union byte* ek, const union byte* m, const union byte* r);
+union byte* Decrypt(const struct ML_KEM* params, union byte* dk, const union byte* c); 
 
 #endif
