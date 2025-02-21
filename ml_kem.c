@@ -13,7 +13,7 @@
 union integer {
 	unsigned int t : 12;	// twelve bit integer 	
 	unsigned int l : 24; 	// twenty-four bit integer - used for real number calculations
-}
+};
 
 // 7-bit reversal (see FIP-203:2.3)
 static union byte BitRev7(union byte r) {
@@ -1255,7 +1255,7 @@ struct KEM KEM_Encaps(const struct PARAMS* params, const union byte* ek,
 			unsigned int ek_len) {
 	union byte* m;
 	union byte* test;
-	union byte* temp;
+	union integer* temp;
 	struct KEM result;
 	unsigned int len = 384 * params->k.e;
 	
@@ -1277,7 +1277,7 @@ struct KEM KEM_Encaps(const struct PARAMS* params, const union byte* ek,
 	free(temp);
 
 	for (int i=0; i < len; i++) {
-		if (test[i] != ek[i]) {
+		if (test[i].e != ek[i].e) {
 			printf("ml_kem.c:KEM_Encaps() :: Modulus check failed\n");
 			free(test);
 			exit(EXIT_FAILURE);
@@ -1332,7 +1332,7 @@ union byte* KEM_Decaps(const struct PARAMS* params, const union byte* dk, unsign
 	
 	offset = len + offset;
 	for (int i=0; i < 32; i++) {
-		if (test[i] != dk[i + offset]) {
+		if (test[i].e != dk[i + offset].e) {
 			printf("ml_kem.c:KEM_Decaps() :: Hash check failed\n");
 			free(test);
 			exit(EXIT_FAILURE);
