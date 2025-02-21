@@ -3,13 +3,15 @@
 
 int main() {
 	
-	struct ML_KEM params = {2, 3, 2, 10, 4};	// ML-KEM-512 parameters
+	struct PARAMS params;
 	struct PKE keys;
 	union byte randomness[32];
 	union byte message[32];
 	union byte* ciphertext;
 	union byte* dmessage;
 	unsigned int len;
+
+	params = init(ML_KEM_512);
 
 	// Initialize randomness array
 	for (int i=0; i < 32; i++) {
@@ -24,9 +26,9 @@ int main() {
 	printf("\n\n");
 
 	// Generate public-private key pair
-	keys = KeyGen(&params, randomness);
+	keys = PKE_KeyGen(&params, randomness);
 
-	ciphertext = Encrypt(&params, keys.ek, message, randomness);	
+	ciphertext = PKE_Encrypt(&params, keys.ek, message, randomness);	
 
 	len = 32 * (params.du.e * params.k.e + params.dv.e);
 	
@@ -36,7 +38,7 @@ int main() {
 	}	
 	printf("\n\n");
 
-	dmessage = Decrypt(&params, keys.dk, ciphertext);
+	dmessage = PKE_Decrypt(&params, keys.dk, ciphertext);
 
 	printf("Plaintext: ");
 	for (int i=0; i < 32; i++) {

@@ -715,7 +715,6 @@ static struct PKE PKE_KeyGen(const struct PARAMS* params, const union byte* d) {
 
 	// Generate a noisy linear system, t, in the NTT domain	
 	for (int i=0; i < params->k.e; i++) {
-		
 		temp = VectorMultiply(A[i], s, params->k.e);
 		t[i] = PolyAddition(temp, e[i]);
 		free(temp);
@@ -1257,6 +1256,7 @@ struct KEM KEM_Encaps(const struct PARAMS* params, const union byte* ek,
 	union byte* test;
 	union integer* temp;
 	struct KEM result;
+	unsigned int offset;
 	unsigned int len = 384 * params->k.e;
 	
 	// Type check
@@ -1266,24 +1266,22 @@ struct KEM KEM_Encaps(const struct PARAMS* params, const union byte* ek,
 	}
 
 	// Modulus check
-	test = malloc(sizeof(union byte) * len);
-	for (int i=0; i < len; i++) test[i] = ek[i];
+	for (int i=0; i < params->k.e; i++) {
+		offset = 384 * i;
 
+		temp = ByteDecode(ek+offset, 12);
+		test = ByteEncode(temp, 12);
+		free(temp);
 
-	temp = ByteDecode(test, 12);
-	free(test);
-
-	test = ByteEncode(temp, 12);
-	free(temp);
-
-	for (int i=0; i < len; i++) {
-		if (test[i].e != ek[i].e) {
-			printf("ml_kem.c:KEM_Encaps() :: Modulus check failed\n");
-			free(test);
-			exit(EXIT_FAILURE);
+		for (int j=0; j < 384; j++) {
+			if (test[j].e != ek[j+offset].e) {
+				printf("ml_kem.c:KEM_Encaps() :: Modulus check failed\n");
+				free(test);
+				exit(EXIT_FAILURE);
+			}
 		}
+		free(test);
 	}
-	free(test);
 
 	// Generate an array of 32 random bytes
 	m = getRandomBytes();
