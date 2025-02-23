@@ -8,6 +8,13 @@
 
 #include "ml_kem.h"
 
+#define ERR_MSG(msg)						\
+	fprintf(stderr, "ERROR: %s - %d\n", __FILE__, __LINE__);	\
+	fprintf(stderr, "\t%s\n", msg);
+
+// Initialize global variable
+int ml_errno = 0;
+
 // Data type for integer arrays F in Zm^256, where m=2^d if 1<=d<12 
 // and m=Q if d=12 (see FIPS-203:4.2.1)
 union integer {
@@ -153,8 +160,7 @@ static union integer* ByteDecode(const union byte* B, unsigned int d) {
 
 	// Set the value of 'm' appropriately
 	if ((1 <= d) && (d < 12)) m = 0x001 << d;
-	else if (d == 12) m = Q;
-	else exit(EXIT_FAILURE);
+	else m = Q;
 
 	for (int i=0; i < N; i++) {
 		F[i].t = 0x000;		// initialize F[i]
@@ -1233,16 +1239,14 @@ struct PKE KEM_KeyGen(const struct PARAMS* params) {
 	z = getRandomBytes();
 
 	if ((d == NULL) || (z == NULL)) {
-		if (d != NULL) free(d);
-		if (z != NULL) free(z);
-
-		printf("ml_kem.c:KEM_KeyGen() :: Random bit generation failed\n");
-		exit(EXIT_FAILURE);
+		ERR_MSG("KEM_KeyGen() :: Random bit generation failed\n");
+		ml_errno = -2;
+	} else {
+		result = KeyGen_internal(params, d, z);
 	}
 
-	result = KeyGen_internal(params, d, z);
-	free(d);
-	free(z);
+	if (d != NULL) free(d);
+	if (z != NULL) free(z);
 
 	return result;
 }
@@ -1261,8 +1265,9 @@ struct KEM KEM_Encaps(const struct PARAMS* params, const union byte* ek,
 	
 	// Type check
 	if ((len + 32) != ek_len) {
-		printf("ml_kem.c:KEM_Encaps() :: Type check failed\n");
-		exit(EXIT_FAILURE);
+		ERR_MSG("KEM_Encaps() :: Type check failed\n");
+		ml_errno = -3;
+		goto end_encaps;
 	}
 
 	// Modulus check
@@ -1275,9 +1280,11 @@ struct KEM KEM_Encaps(const struct PARAMS* params, const union byte* ek,
 
 		for (int j=0; j < 384; j++) {
 			if (test[j].e != ek[j+offset].e) {
-				printf("ml_kem.c:KEM_Encaps() :: Modulus check failed\n");
 				free(test);
-				exit(EXIT_FAILURE);
+
+				ERR_MSG("KEM_Encaps() :: Modulus check failed\n");
+				ml_errno = -4; 
+				goto end_encaps;
 			}
 		}
 		free(test);
@@ -1286,13 +1293,14 @@ struct KEM KEM_Encaps(const struct PARAMS* params, const union byte* ek,
 	// Generate an array of 32 random bytes
 	m = getRandomBytes();
 	if (m == NULL) {
-		printf("ml_kem.c:KEM_Encaps() :: Random bit generation failed\n");
-		exit(EXIT_FAILURE);
+		ERR_MSG("KEM_Encaps() :: Random bit generation failed\n");
+		ml_errno = -2;
+	} else {
+		result = Encaps_internal(params, ek, m);
+		free(m);
 	}
 
-	result = Encaps_internal(params, ek, m);
-	free(m);
-
+end_encaps:
 	return result;
 }
 
@@ -1303,21 +1311,25 @@ union byte* KEM_Decaps(const struct PARAMS* params, const union byte* dk, unsign
 			const union byte* c, unsigned int c_len) {
 	union byte* test;
 	union byte* input;
+	union byte* result = NULL;
+
 	unsigned int len;
 	unsigned int offset = 384 * params->k.e;
 
 	// Ciphertext type check
 	len = 32 * (params->du.e * params->k.e + params->dv.e);
 	if (c_len != len) {
-		printf("ml_kem.c:KEM_Decaps() :: Ciphertext type check failed\n");
-		exit(EXIT_FAILURE);
+		ERR_MSG("KEM_Decaps() :: Ciphertext type check failed\n");
+		ml_errno = -3;
+		goto end_decaps;
 	}
 
 	// Decapsulation key type check
 	len = 768 * params->k.e + 96;
 	if (dk_len != len) {
-		printf("ml_kem.c:KEM_Decaps() :: Decapsulation key type check failed\n");
-		exit(EXIT_FAILURE);
+		ERR_MSG("KEM_Decaps() :: Decapsulation key type check failed\n");
+		ml_errno = -3;
+		goto end_decaps;
 	}
 
 	// Hash check
@@ -1331,15 +1343,19 @@ union byte* KEM_Decaps(const struct PARAMS* params, const union byte* dk, unsign
 	offset = len + offset;
 	for (int i=0; i < 32; i++) {
 		if (test[i].e != dk[i + offset].e) {
-			printf("ml_kem.c:KEM_Decaps() :: Hash check failed\n");
-			free(test);
-			exit(EXIT_FAILURE);
+			ERR_MSG("KEM_Decaps() :: Hash check failed\n");
+			ml_errno = -5;
+			goto free_decaps;
 		}
 	}
-	free(test);
-	
 
-	return Decaps_internal(params, dk, c);
+
+	result = Decaps_internal(params, dk, c);
+
+free_decaps:
+	free(test);
+end_decaps:
+	return result;
 }
 
 // Initialize a PARAMS struct based on the chosen parameter set - see
@@ -1371,8 +1387,8 @@ const struct PARAMS init(enum ML_KEM param_set) {
 		params.dv.e = 5;
 		break;
 	default:
-		printf("ml_kem.c:init() :: Invalid paramater set provided\n");
-		exit(EXIT_FAILURE);
+		ERR_MSG("init() :: Invalid paramater set provided\n");
+		ml_errno = -1;
 	}
 
 	return params;

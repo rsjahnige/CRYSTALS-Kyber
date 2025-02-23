@@ -22,6 +22,9 @@
 #define N 256
 #define Q 3329
 
+// ML-KEM error indicator
+extern int ml_errno;
+
 // "byte" is a loosely defined term, so for this program it will
 // take on a couple different forms. Users do not need to concern 
 // themselves with the 7-bit data type; it is only used for internal 
